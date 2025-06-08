@@ -8,10 +8,11 @@ readme = "README.md"
 packages = [{ include = "kozmoai_charting" }]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"  # scipy forces python <4.0 explicitly
-kozmoai-core = "^1.4.0"
-pandas-ta-kozmoai = "^0.4.20"
-plotly = "^5.24.1"
+python = ">=3.9.21,<3.13"
+kozmoai-core = "^1.4.2"
+pandas-ta-kozmoai = { path = "../../../pandas_ta_kozmoai", develop = true }
+matplotlib = "^3.7.2"
+mplfinance = "^0.12.10b0"
 pywry = { version = "^0.6.2", optional = true }
 nbformat = "^5.10.0"
 
@@ -24,3 +25,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.plugins."kozmoai_obbject_extension"]
 kozmoai_charting = "kozmoai_charting:ext"
+
+[tool.poetry.plugins."kozmoai_core_extension"]
+charting = "kozmoai_charting.charting_router:router"

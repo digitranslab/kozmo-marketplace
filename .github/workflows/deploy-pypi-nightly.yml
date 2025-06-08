@@ -23,19 +23,238 @@ jobs:
           python -m
           pip install
           build
+          poetry
+          toml
 
-      - name: KozmoAI Platform - Update version in pyproject.toml and Edit docs
+      - name: KozmoAI Platform - Update version in pyproject.toml
+        working-directory: marketplace/quant/kozmoai_platform
         run: |
-          sed -i 's/name = ".*"/name = "kozmoai-nightly"/' kozmoai_platform/pyproject.toml
-          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$(date +%Y%m%d%H%M)\"/" kozmoai_platform/pyproject.toml
+          sed -i 's/name = ".*"/name = "kozmoai-nightly"/' pyproject.toml
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$(date +%Y%m%d%H%M)\"/" pyproject.toml
+          echo "Updated version in pyproject.toml"
 
       - name: KozmoAI Platform - Create the dynamically generated wheel
+        working-directory: marketplace/quant
         run: |
-          python -m pip install poetry toml
-          python build/pypi/kozmoai_platform/nightly.py
+          if [ -f "build/pypi/kozmoai_platform/nightly.py" ]; then
+            python build/pypi/kozmoai_platform/nightly.py
+          else
+            cd kozmoai_platform
+            python -m build
+            echo "Built package using standard build process"
+          fi
 
       - name: KozmoAI Platform - Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: kozmoai_platform/dist/
+          packages-dir: marketplace/quant/kozmoai_platform/dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+  deploy-pandas-ta-kozmoai:
+    name: Build and publish pandas-ta-kozmoai 📦 to PyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+
+      - name: Update pandas-ta-kozmoai version
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Add dev suffix with timestamp to version
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$(date +%Y%m%d%H%M)\"/" pyproject.toml
+
+      - name: Build pandas-ta-kozmoai package
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Build the package
+          python -m build
+
+      - name: Publish pandas-ta-kozmoai to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/pandas_ta_kozmoai/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+  deploy-extensions:
+    name: Build and publish ${{ matrix.extension }} extension 📦 to PyPI
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extension:
+          - technical
+          - quantitative
+          - platform_api
+          - econometrics
+          - fixedincome
+          - derivatives
+          - regulators
+          - commodity
+          - devtools
+          - currency
+          - economy
+          - equity
+          - crypto
+          - index
+          - news
+          - etf
+    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+
+      - name: Verify extension directory exists
+        id: check_extension
+        run: |
+          if [ -d "marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}" ]; then
+            echo "extension_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "extension_exists=false" >> $GITHUB_OUTPUT
+            echo "Extension ${{ matrix.extension }} directory not found, skipping."
+          fi
+
+      - name: Update extension version
+        if: steps.check_extension.outputs.extension_exists == 'true'
+        working-directory: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            # Add dev suffix with timestamp to version
+            TIMESTAMP=$(date +%Y%m%d%H%M)
+            sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+            echo "Updated version in pyproject.toml"
+          else
+            echo "pyproject.toml not found in extension directory, skipping version update."
+            exit 1
+          fi
+
+      - name: Build extension package
+        if: steps.check_extension.outputs.extension_exists == 'true'
+        working-directory: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}
+        run: |
+          # Build the package
+          python -m build
+          echo "Built package for ${{ matrix.extension }}"
+
+      - name: Publish extension to PyPI
+        if: steps.check_extension.outputs.extension_exists == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+  deploy-providers:
+    name: Build and publish ${{ matrix.provider }} provider 📦 to PyPI
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider:
+          - tradingeconomics
+          - federal_reserve
+          - seeking_alpha
+          - government_us
+          - alpha_vantage
+          - stockgrid
+          - yfinance
+          - intrinio
+          - benzinga
+          - tradier
+          - polygon
+          - deribit
+          - tiingo
+          - nasdaq
+          - multpl
+          - finviz
+          - econdb
+          - biztoc
+          - finra
+          - oecd
+          - fred
+          - cftc
+          - cboe
+          - wsj
+          - tmx
+          - sec
+          - imf
+          - fmp
+          - eia
+          - ecb
+          - bls
+    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+
+      - name: Verify provider directory exists
+        id: check_provider
+        run: |
+          if [ -d "marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}" ]; then
+            echo "provider_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "provider_exists=false" >> $GITHUB_OUTPUT
+            echo "Provider ${{ matrix.provider }} directory not found, skipping."
+          fi
+
+      - name: Update provider version
+        if: steps.check_provider.outputs.provider_exists == 'true'
+        working-directory: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            # Add dev suffix with timestamp to version
+            TIMESTAMP=$(date +%Y%m%d%H%M)
+            sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+            echo "Updated version in pyproject.toml"
+          else
+            echo "pyproject.toml not found in provider directory, skipping version update."
+            exit 1
+          fi
+
+      - name: Build provider package
+        if: steps.check_provider.outputs.provider_exists == 'true'
+        working-directory: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}
+        run: |
+          # Build the package
+          python -m build
+          echo "Built package for ${{ matrix.provider }}"
+
+      - name: Publish provider to PyPI
+        if: steps.check_provider.outputs.provider_exists == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true

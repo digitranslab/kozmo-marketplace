@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{ include = "kozmoai" }]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.9.21,<3.13"
 kozmoai-core = "^1.4.2"
 kozmoai-platform-api = "^1.1.4"
 

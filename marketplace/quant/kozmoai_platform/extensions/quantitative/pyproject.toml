@@ -8,9 +8,9 @@ readme = "README.md"
 packages = [{ include = "kozmoai_quantitative" }]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.9.21,<3.13"
 kozmoai-core = "^1.4.2"
-pandas-ta-kozmoai = "^0.4.20"
+pandas-ta-kozmoai = { path = "../../../pandas_ta_kozmoai", develop = true }
 
 [build-system]
 requires = ["poetry-core"]
@@ -18,3 +18,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.plugins."kozmoai_core_extension"]
 quantitative = "kozmoai_quantitative.quantitative_router:router"
+
+[tool.poetry.plugins."kozmoai_charting_extension"]
+quantitative = "kozmoai_quantitative.quantitative_views:QuantitativeViews"

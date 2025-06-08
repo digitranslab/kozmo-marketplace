@@ -146,16 +146,31 @@ def install_platform_local(_extras: bool = False):
         CMD = [sys.executable, "-m", "poetry"]
         extras_args = ["-E", "all"] if _extras else []
 
-        subprocess.run(
-            CMD + ["lock"],
-            cwd=PLATFORM_PATH,
-            check=True,
-        )
-        subprocess.run(
-            CMD + ["install"] + extras_args,
-            cwd=PLATFORM_PATH,
-            check=True,
-        )
+        # Skip poetry lock which is causing issues and use direct install
+        try:
+            # Try to use direct install with the --with-local option
+            subprocess.run(
+                CMD + ["install", "--with-local"] + extras_args,
+                cwd=PLATFORM_PATH,
+                check=True,
+            )
+        except subprocess.CalledProcessError:
+            # Fall back to pip direct install of the packages with the pandas-ta-kozmoai issue
+            print("Using pip to directly install the problematic extensions")
+            extension_paths = [
+                "../pandas_ta_kozmoai",
+                "extensions/technical", 
+                "extensions/econometrics", 
+                "extensions/quantitative", 
+                "obbject_extensions/charting"
+            ]
+            for path in extension_paths:
+                full_path = PLATFORM_PATH / path
+                if full_path.exists():
+                    subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "-e", str(full_path)],
+                        check=True,
+                    )
 
     except (Exception, KeyboardInterrupt) as e:
         print(e)  # noqa: T201
@@ -191,12 +206,20 @@ def install_platform_cli():
 
         CMD = [sys.executable, "-m", "poetry"]
 
-        subprocess.run(
-            CMD + ["lock"],
-            cwd=CLI_PATH,
-            check=True,  # noqa: S603
-        )
-        subprocess.run(CMD + ["install"], cwd=CLI_PATH, check=True)  # noqa: S603
+        # Skip poetry lock and try direct install
+        try:
+            # Try to use direct install with the --with-local option
+            subprocess.run(
+                CMD + ["install", "--with-local"], 
+                cwd=CLI_PATH, 
+                check=True
+            )
+        except subprocess.CalledProcessError:
+            # Fall back to pip direct install
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-e", str(CLI_PATH)],
+                check=True,
+            )
 
     except (Exception, KeyboardInterrupt) as e:
         print(e)  # noqa: T201

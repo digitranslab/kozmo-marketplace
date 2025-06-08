@@ -8,9 +8,12 @@ readme = "README.md"
 packages = [{ include = "kozmoai_econometrics" }]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"  # scipy forces python <4.0 explicitly
+python = ">=3.9.21,<3.13"
 kozmoai-core = "^1.4.2"
-pandas-ta-kozmoai = "^0.4.20"
+pandas-ta-kozmoai = { path = "../../../pandas_ta_kozmoai", develop = true }
+statsmodels = "^0.14.0"
+scikit-learn = "^1.6.0"
+kneed = ">=0.8.5,<0.9.0"
 arch = "^7.2"
 linearmodels = "^6"
 
