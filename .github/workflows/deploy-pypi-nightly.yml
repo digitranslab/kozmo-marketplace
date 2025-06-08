@@ -7,9 +7,145 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-pandas-ta-kozmoai:
+    name: Check if pandas-ta-kozmoai exists on PyPI
+    runs-on: ubuntu-latest
+    outputs:
+      EXISTS: ${{ steps.check_exists.outputs.EXISTS }}
+      
+    steps:
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          
+      - name: Check if package exists on PyPI
+        id: check_exists
+        run: |
+          # Try to get package info from PyPI
+          EXISTS=$(pip index versions pandas-ta-kozmoai --no-cache-dir 2>/dev/null | grep -q "pandas-ta-kozmoai" && echo "true" || echo "false")
+          echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
+          echo "Package exists on PyPI: $EXISTS"
+
+  deploy-pandas-ta-kozmoai:
+    name: Build and publish pandas-ta-kozmoai 📦 to PyPI
+    runs-on: ubuntu-latest
+    needs: check-pandas-ta-kozmoai
+    # Only run this job if the package already exists on PyPI
+    if: needs.check-pandas-ta-kozmoai.outputs.EXISTS == 'true'
+    outputs:
+      PANDAS_TA_VERSION: ${{ steps.set_version.outputs.PANDAS_TA_VERSION }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+
+      - name: Update pandas-ta-kozmoai version
+        id: set_version
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Add dev suffix with timestamp to version
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+          echo "Updated pandas-ta-kozmoai version to include timestamp: $TIMESTAMP"
+          # Store the version for later use
+          VERSION=$(grep -oP 'version = "\K[^"]+' pyproject.toml)
+          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build pandas-ta-kozmoai package
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Build the package
+          python -m build
+          echo "Built pandas-ta-kozmoai package version ${{ env.PANDAS_TA_VERSION }}"
+
+      - name: Publish pandas-ta-kozmoai to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/pandas_ta_kozmoai/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+  prepare-pandas-ta-package-if-new:
+    name: Prepare pandas-ta-kozmoai package files for manual upload
+    runs-on: ubuntu-latest
+    needs: check-pandas-ta-kozmoai
+    # Only run this job if the package doesn't exist on PyPI
+    if: needs.check-pandas-ta-kozmoai.outputs.EXISTS == 'false'
+    outputs:
+      PANDAS_TA_VERSION: ${{ steps.set_version.outputs.PANDAS_TA_VERSION }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+
+      - name: Update pandas-ta-kozmoai version
+        id: set_version
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Add dev suffix with timestamp to version
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+          echo "Updated pandas-ta-kozmoai version to include timestamp: $TIMESTAMP"
+          # Store the version for later use
+          VERSION=$(grep -oP 'version = "\K[^"]+' pyproject.toml)
+          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build pandas-ta-kozmoai package
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Build the package
+          python -m build
+          echo "Built pandas-ta-kozmoai package version ${{ env.PANDAS_TA_VERSION }}"
+
+      - name: Save package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandas-ta-kozmoai-package
+          path: marketplace/quant/pandas_ta_kozmoai/dist/
+          retention-days: 7
+
+      - name: Manual upload instructions
+        run: |
+          echo "⚠️ PACKAGE DOES NOT EXIST ON PYPI YET ⚠️"
+          echo "Due to PyPI rate limits on new project creation, you'll need to upload this package manually."
+          echo ""
+          echo "Instructions:"
+          echo "1. Download the artifact from the GitHub Actions run"
+          echo "2. Wait at least 24 hours after your last new project creation on PyPI"
+          echo "3. Upload manually using 'twine upload' or PyPI web interface"
+          echo "4. Once uploaded, you can run this workflow again - it will detect the package exists"
+          echo ""
+          echo "Package version: ${{ env.PANDAS_TA_VERSION }}"
+          echo "Artifact name: pandas-ta-kozmoai-package"
+
   deploy-nightly-pypi:
     name: Build and publish nightly distributions 📦 to PyPI
     runs-on: ubuntu-latest
+    needs: [deploy-pandas-ta-kozmoai, prepare-pandas-ta-package-if-new]
+    if: always() && (needs.deploy-pandas-ta-kozmoai.result == 'success' || needs.prepare-pandas-ta-package-if-new.result == 'success')
 
     steps:
       - uses: actions/checkout@v4
@@ -51,94 +187,11 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
 
-  check-pandas-ta-kozmoai:
-    name: Check if pandas-ta-kozmoai exists on PyPI
-    runs-on: ubuntu-latest
-    outputs:
-      EXISTS: ${{ steps.check_exists.outputs.EXISTS }}
-      
-    steps:
-      - name: Setup Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          
-      - name: Check if package exists on PyPI
-        id: check_exists
-        run: |
-          # Try to get package info from PyPI
-          EXISTS=$(pip index versions pandas-ta-kozmoai --no-cache-dir 2>/dev/null | grep -q "pandas-ta-kozmoai" && echo "true" || echo "false")
-          echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
-          echo "Package exists on PyPI: $EXISTS"
-
-  deploy-pandas-ta-kozmoai:
-    name: Build and publish pandas-ta-kozmoai 📦 to PyPI
-    runs-on: ubuntu-latest
-    needs: check-pandas-ta-kozmoai
-    outputs:
-      PANDAS_TA_VERSION: ${{ steps.set_version.outputs.PANDAS_TA_VERSION }}
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Install build dependencies
-        run: >-
-          python -m
-          pip install
-          build
-          poetry
-
-      - name: Update pandas-ta-kozmoai version
-        id: set_version
-        working-directory: marketplace/quant/pandas_ta_kozmoai
-        run: |
-          # Add dev suffix with timestamp to version
-          TIMESTAMP=$(date +%Y%m%d%H%M)
-          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
-          echo "Updated pandas-ta-kozmoai version to include timestamp: $TIMESTAMP"
-          # Store the version for later use
-          VERSION=$(grep -oP 'version = "\K[^"]+' pyproject.toml)
-          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Build pandas-ta-kozmoai package
-        working-directory: marketplace/quant/pandas_ta_kozmoai
-        run: |
-          # Build the package
-          python -m build
-          echo "Built pandas-ta-kozmoai package version ${{ env.PANDAS_TA_VERSION }}"
-
-      # If the package already exists on PyPI, we can publish without worrying about rate limits
-      - name: Publish pandas-ta-kozmoai to PyPI (existing package)
-        if: needs.check-pandas-ta-kozmoai.outputs.EXISTS == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: marketplace/quant/pandas_ta_kozmoai/dist/
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          skip-existing: true
-
-      # If this is a new package, we need to be careful with rate limits
-      - name: Publish pandas-ta-kozmoai to PyPI (new package)
-        if: needs.check-pandas-ta-kozmoai.outputs.EXISTS == 'false'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: marketplace/quant/pandas_ta_kozmoai/dist/
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          # Verify option can help with rate limits as it's more cautious
-          verify-metadata: true
-          skip-existing: true
-          # Add retry
-          max-retries: 3
-          retry-delay: 60
-
   deploy-extensions:
     name: Build and publish ${{ matrix.extension }} extension 📦 to PyPI
     runs-on: ubuntu-latest
-    needs: deploy-pandas-ta-kozmoai
+    needs: [deploy-pandas-ta-kozmoai, prepare-pandas-ta-package-if-new]
+    if: always() && (needs.deploy-pandas-ta-kozmoai.result == 'success' || needs.prepare-pandas-ta-package-if-new.result == 'success')
     strategy:
       fail-fast: false
       matrix:
@@ -186,6 +239,20 @@ jobs:
             echo "Extension ${{ matrix.extension }} directory not found, skipping."
           fi
 
+      - name: Check if pandas-ta-kozmoai was published
+        id: check_pandas_ta
+        run: |
+          if [[ "${{ needs.deploy-pandas-ta-kozmoai.result }}" == "success" ]]; then
+            echo "PANDAS_TA_PUBLISHED=true" >> $GITHUB_OUTPUT
+            echo "PANDAS_TA_VERSION=${{ needs.deploy-pandas-ta-kozmoai.outputs.PANDAS_TA_VERSION }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.prepare-pandas-ta-package-if-new.result }}" == "success" ]]; then
+            echo "PANDAS_TA_PUBLISHED=false" >> $GITHUB_OUTPUT
+            echo "PANDAS_TA_VERSION=${{ needs.prepare-pandas-ta-package-if-new.outputs.PANDAS_TA_VERSION }}" >> $GITHUB_OUTPUT
+          else
+            echo "PANDAS_TA_PUBLISHED=false" >> $GITHUB_OUTPUT
+            echo "PANDAS_TA_VERSION=0.4.21" >> $GITHUB_OUTPUT
+          fi
+
       - name: Replace file-based dependencies with version constraints
         if: steps.check_extension.outputs.extension_exists == 'true'
         working-directory: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}
@@ -197,12 +264,18 @@ jobs:
             # Check if file contains pandas-ta-kozmoai as a file reference
             if grep -q "pandas-ta-kozmoai.*path" pyproject.toml; then
               echo "Found file-based pandas-ta-kozmoai dependency, replacing with version reference"
-              # Replace the file-based dependency with the version from previous job
-              PANDAS_TA_VERSION="${{ needs.deploy-pandas-ta-kozmoai.outputs.PANDAS_TA_VERSION || '0.4.21' }}"
               
-              # Use sed to replace the path-based dependency with a version constraint
-              sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "'"$PANDAS_TA_VERSION"'"|g' pyproject.toml
-              echo "Replaced pandas-ta-kozmoai path dependency with version: $PANDAS_TA_VERSION"
+              # If pandas-ta-kozmoai was published, use the version
+              # Otherwise, hardcode a fake version that will cause an error to alert the user
+              if [[ "${{ steps.check_pandas_ta.outputs.PANDAS_TA_PUBLISHED }}" == "true" ]]; then
+                PANDAS_TA_VERSION="${{ steps.check_pandas_ta.outputs.PANDAS_TA_VERSION }}"
+                sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "'"$PANDAS_TA_VERSION"'"|g' pyproject.toml
+                echo "Replaced pandas-ta-kozmoai path dependency with version: $PANDAS_TA_VERSION"
+              else
+                # For new packages that haven't been published, skip build
+                echo "pandas-ta-kozmoai is not yet published to PyPI. Skipping extension build."
+                exit 0
+              fi
             fi
             
             # Handle any other file-based dependencies
@@ -222,8 +295,18 @@ jobs:
             exit 1
           fi
 
-      - name: Update extension version
+      - name: Check if extension package exists on PyPI
         if: steps.check_extension.outputs.extension_exists == 'true'
+        id: check_extension_exists
+        run: |
+          # Try to get package info from PyPI
+          PACKAGE_NAME="kozmoai-${{ matrix.extension }}"
+          EXISTS=$(pip index versions $PACKAGE_NAME --no-cache-dir 2>/dev/null | grep -q "$PACKAGE_NAME" && echo "true" || echo "false")
+          echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
+          echo "Package $PACKAGE_NAME exists on PyPI: $EXISTS"
+
+      - name: Update extension version
+        if: steps.check_extension.outputs.extension_exists == 'true' && steps.check_extension_exists.outputs.EXISTS == 'true'
         working-directory: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}
         run: |
           if [ -f "pyproject.toml" ]; then
@@ -237,7 +320,7 @@ jobs:
           fi
 
       - name: Build extension package
-        if: steps.check_extension.outputs.extension_exists == 'true'
+        if: steps.check_extension.outputs.extension_exists == 'true' && steps.check_extension_exists.outputs.EXISTS == 'true'
         working-directory: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}
         run: |
           # Build the package
@@ -249,18 +332,7 @@ jobs:
             echo "Restored original pyproject.toml"
           fi
 
-      - name: Check if extension package exists on PyPI
-        if: steps.check_extension.outputs.extension_exists == 'true'
-        id: check_extension_exists
-        run: |
-          # Try to get package info from PyPI
-          PACKAGE_NAME="kozmoai-${{ matrix.extension }}"
-          EXISTS=$(pip index versions $PACKAGE_NAME --no-cache-dir 2>/dev/null | grep -q "$PACKAGE_NAME" && echo "true" || echo "false")
-          echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
-          echo "Package $PACKAGE_NAME exists on PyPI: $EXISTS"
-
-      # If the package already exists on PyPI, we can publish without worrying about rate limits
-      - name: Publish extension to PyPI (existing package)
+      - name: Publish extension to PyPI (existing package only)
         if: steps.check_extension.outputs.extension_exists == 'true' && steps.check_extension_exists.outputs.EXISTS == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -268,24 +340,57 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
 
-      # If this is a new package, we need to be careful with rate limits
-      - name: Publish extension to PyPI (new package)
+      - name: Prepare extension package for manual upload if new
         if: steps.check_extension.outputs.extension_exists == 'true' && steps.check_extension_exists.outputs.EXISTS == 'false'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        working-directory: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            # Add dev suffix with timestamp to version
+            TIMESTAMP=$(date +%Y%m%d%H%M)
+            sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+            echo "Updated version in pyproject.toml"
+            
+            # Build the package
+            python -m build
+            echo "Built package for ${{ matrix.extension }}"
+            
+            # Restore the original pyproject.toml
+            if [ -f "pyproject.toml.backup" ]; then
+              mv pyproject.toml.backup pyproject.toml
+              echo "Restored original pyproject.toml"
+            fi
+          else
+            echo "pyproject.toml not found in extension directory, skipping version update."
+            exit 1
+          fi
+
+      - name: Save new extension package artifacts
+        if: steps.check_extension.outputs.extension_exists == 'true' && steps.check_extension_exists.outputs.EXISTS == 'false'
+        uses: actions/upload-artifact@v4
         with:
-          packages-dir: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}/dist/
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          # Verify option can help with rate limits as it's more cautious
-          verify-metadata: true
-          skip-existing: true
-          # Add retry
-          max-retries: 3
-          retry-delay: 60
+          name: kozmoai-${{ matrix.extension }}-package
+          path: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}/dist/
+          retention-days: 7
+
+      - name: Manual upload instructions for new extension
+        if: steps.check_extension.outputs.extension_exists == 'true' && steps.check_extension_exists.outputs.EXISTS == 'false'
+        run: |
+          echo "⚠️ EXTENSION PACKAGE DOES NOT EXIST ON PYPI YET ⚠️"
+          echo "Due to PyPI rate limits on new project creation, you'll need to upload this package manually."
+          echo ""
+          echo "Instructions:"
+          echo "1. Download the artifact from the GitHub Actions run"
+          echo "2. Wait at least 24 hours after your last new project creation on PyPI"
+          echo "3. Upload manually using 'twine upload' or PyPI web interface"
+          echo "4. Once uploaded, you can run this workflow again - it will detect the package exists"
+          echo ""
+          echo "Artifact name: kozmoai-${{ matrix.extension }}-package"
 
   deploy-providers:
     name: Build and publish ${{ matrix.provider }} provider 📦 to PyPI
     runs-on: ubuntu-latest
-    needs: deploy-pandas-ta-kozmoai
+    needs: [deploy-pandas-ta-kozmoai, prepare-pandas-ta-package-if-new]
+    if: always() && (needs.deploy-pandas-ta-kozmoai.result == 'success' || needs.prepare-pandas-ta-package-if-new.result == 'success')
     strategy:
       fail-fast: false
       matrix:
@@ -348,6 +453,20 @@ jobs:
             echo "Provider ${{ matrix.provider }} directory not found, skipping."
           fi
 
+      - name: Check if pandas-ta-kozmoai was published
+        id: check_pandas_ta
+        run: |
+          if [[ "${{ needs.deploy-pandas-ta-kozmoai.result }}" == "success" ]]; then
+            echo "PANDAS_TA_PUBLISHED=true" >> $GITHUB_OUTPUT
+            echo "PANDAS_TA_VERSION=${{ needs.deploy-pandas-ta-kozmoai.outputs.PANDAS_TA_VERSION }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.prepare-pandas-ta-package-if-new.result }}" == "success" ]]; then
+            echo "PANDAS_TA_PUBLISHED=false" >> $GITHUB_OUTPUT
+            echo "PANDAS_TA_VERSION=${{ needs.prepare-pandas-ta-package-if-new.outputs.PANDAS_TA_VERSION }}" >> $GITHUB_OUTPUT
+          else
+            echo "PANDAS_TA_PUBLISHED=false" >> $GITHUB_OUTPUT
+            echo "PANDAS_TA_VERSION=0.4.21" >> $GITHUB_OUTPUT
+          fi
+
       - name: Replace file-based dependencies with version constraints
         if: steps.check_provider.outputs.provider_exists == 'true'
         working-directory: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}
@@ -359,12 +478,18 @@ jobs:
             # Check if file contains pandas-ta-kozmoai as a file reference
             if grep -q "pandas-ta-kozmoai.*path" pyproject.toml; then
               echo "Found file-based pandas-ta-kozmoai dependency, replacing with version reference"
-              # Replace the file-based dependency with the version from previous job
-              PANDAS_TA_VERSION="${{ needs.deploy-pandas-ta-kozmoai.outputs.PANDAS_TA_VERSION || '0.4.21' }}"
               
-              # Use sed to replace the path-based dependency with a version constraint
-              sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "'"$PANDAS_TA_VERSION"'"|g' pyproject.toml
-              echo "Replaced pandas-ta-kozmoai path dependency with version: $PANDAS_TA_VERSION"
+              # If pandas-ta-kozmoai was published, use the version
+              # Otherwise, hardcode a fake version that will cause an error to alert the user
+              if [[ "${{ steps.check_pandas_ta.outputs.PANDAS_TA_PUBLISHED }}" == "true" ]]; then
+                PANDAS_TA_VERSION="${{ steps.check_pandas_ta.outputs.PANDAS_TA_VERSION }}"
+                sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "'"$PANDAS_TA_VERSION"'"|g' pyproject.toml
+                echo "Replaced pandas-ta-kozmoai path dependency with version: $PANDAS_TA_VERSION"
+              else
+                # For new packages that haven't been published, skip build
+                echo "pandas-ta-kozmoai is not yet published to PyPI. Skipping provider build."
+                exit 0
+              fi
             fi
             
             # Handle any other file-based dependencies
@@ -384,8 +509,18 @@ jobs:
             exit 1
           fi
 
-      - name: Update provider version
+      - name: Check if provider package exists on PyPI
         if: steps.check_provider.outputs.provider_exists == 'true'
+        id: check_provider_exists
+        run: |
+          # Try to get package info from PyPI
+          PACKAGE_NAME="kozmoai-provider-${{ matrix.provider }}"
+          EXISTS=$(pip index versions $PACKAGE_NAME --no-cache-dir 2>/dev/null | grep -q "$PACKAGE_NAME" && echo "true" || echo "false")
+          echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
+          echo "Package $PACKAGE_NAME exists on PyPI: $EXISTS"
+
+      - name: Update provider version
+        if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'true'
         working-directory: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}
         run: |
           if [ -f "pyproject.toml" ]; then
@@ -399,7 +534,7 @@ jobs:
           fi
 
       - name: Build provider package
-        if: steps.check_provider.outputs.provider_exists == 'true'
+        if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'true'
         working-directory: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}
         run: |
           # Build the package
@@ -411,18 +546,7 @@ jobs:
             echo "Restored original pyproject.toml"
           fi
 
-      - name: Check if provider package exists on PyPI
-        if: steps.check_provider.outputs.provider_exists == 'true'
-        id: check_provider_exists
-        run: |
-          # Try to get package info from PyPI
-          PACKAGE_NAME="kozmoai-provider-${{ matrix.provider }}"
-          EXISTS=$(pip index versions $PACKAGE_NAME --no-cache-dir 2>/dev/null | grep -q "$PACKAGE_NAME" && echo "true" || echo "false")
-          echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
-          echo "Package $PACKAGE_NAME exists on PyPI: $EXISTS"
-
-      # If the package already exists on PyPI, we can publish without worrying about rate limits
-      - name: Publish provider to PyPI (existing package)
+      - name: Publish provider to PyPI (existing package only)
         if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -430,16 +554,48 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
 
-      # If this is a new package, we need to be careful with rate limits
-      - name: Publish provider to PyPI (new package)
+      - name: Prepare provider package for manual upload if new
         if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'false'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        working-directory: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            # Add dev suffix with timestamp to version
+            TIMESTAMP=$(date +%Y%m%d%H%M)
+            sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+            echo "Updated version in pyproject.toml"
+            
+            # Build the package
+            python -m build
+            echo "Built package for ${{ matrix.provider }}"
+            
+            # Restore the original pyproject.toml
+            if [ -f "pyproject.toml.backup" ]; then
+              mv pyproject.toml.backup pyproject.toml
+              echo "Restored original pyproject.toml"
+            fi
+          else
+            echo "pyproject.toml not found in provider directory, skipping version update."
+            exit 1
+          fi
+
+      - name: Save new provider package artifacts
+        if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'false'
+        uses: actions/upload-artifact@v4
         with:
-          packages-dir: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}/dist/
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          # Verify option can help with rate limits as it's more cautious
-          verify-metadata: true
-          skip-existing: true
-          # Add retry
-          max-retries: 3
-          retry-delay: 60
+          name: kozmoai-provider-${{ matrix.provider }}-package
+          path: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}/dist/
+          retention-days: 7
+
+      - name: Manual upload instructions for new provider
+        if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'false'
+        run: |
+          echo "⚠️ PROVIDER PACKAGE DOES NOT EXIST ON PYPI YET ⚠️"
+          echo "Due to PyPI rate limits on new project creation, you'll need to upload this package manually."
+          echo ""
+          echo "Instructions:"
+          echo "1. Download the artifact from the GitHub Actions run"
+          echo "2. Wait at least 24 hours after your last new project creation on PyPI"
+          echo "3. Upload manually using 'twine upload' or PyPI web interface"
+          echo "4. Once uploaded, you can run this workflow again - it will detect the package exists"
+          echo ""
+          echo "Artifact name: kozmoai-provider-${{ matrix.provider }}-package"
