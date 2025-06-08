@@ -1,0 +1,68 @@
+name: Deploy the KozmoAI Platform to Test PyPI
+
+on:
+  push:
+    branches:
+      - feature/v4-pypi
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-test-pypi:
+    name: Build and publish 📦 to TestPyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install pypa/build
+        run: >-
+          python -m
+          pip install
+          build
+          --user
+
+      - name: KozmoAITerminal - Update version in pyproject.toml and Edit docs
+        run: |
+          sed -i 's/name = ".*"/name = "kozmoai-terminal-nightly"/' pyproject.toml
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$(date +%Y%m%d%H%M)\"/" pyproject.toml
+          sed -i 's|pip install kozmoai-terminal|pip install kozmoai-terminal-nightly|g' ./website/pypi.md
+
+      - name: KozmoAITerminal - Build a binary wheel and a source tarball
+        run: >-
+          python -m
+          build
+          --sdist
+          --wheel
+          --outdir dist/
+          .
+
+      - name: KozmoAITerminal - Publish distribution 📦 to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: KozmoAI Platform - Update version in pyproject.toml and Edit docs
+        run: |
+          sed -i 's/name = ".*"/name = "kozmoai-nightly"/' kozmoai_platform/pyproject.toml
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$(date +%Y%m%d%H%M)\"/" kozmoai_platform/pyproject.toml
+
+      - name: KozmoAI Platform - Create the dynamically generated wheel
+        run: |
+          python -m pip install poetry toml
+          python build/pypi/kozmoai_platform/nightly.py
+
+      - name: KozmoAI Platform - Publish distribution 📦 to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: kozmoai_platform/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
