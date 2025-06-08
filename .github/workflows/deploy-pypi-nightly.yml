@@ -54,6 +54,9 @@ jobs:
   deploy-pandas-ta-kozmoai:
     name: Build and publish pandas-ta-kozmoai 📦 to PyPI
     runs-on: ubuntu-latest
+    outputs:
+      PANDAS_TA_VERSION: ${{ steps.set_version.outputs.PANDAS_TA_VERSION }}
+      PANDAS_TA_REPOSITORY: ${{ steps.publish.outputs.REPOSITORY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +73,7 @@ jobs:
           poetry
 
       - name: Update pandas-ta-kozmoai version
+        id: set_version
         working-directory: marketplace/quant/pandas_ta_kozmoai
         run: |
           # Add dev suffix with timestamp to version
@@ -78,6 +82,7 @@ jobs:
           echo "Updated pandas-ta-kozmoai version to include timestamp: $TIMESTAMP"
           # Store the version for later use
           VERSION=$(grep -oP 'version = "\K[^"]+' pyproject.toml)
+          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Build pandas-ta-kozmoai package
@@ -88,11 +93,35 @@ jobs:
           echo "Built pandas-ta-kozmoai package version ${{ env.PANDAS_TA_VERSION }}"
 
       - name: Publish pandas-ta-kozmoai to PyPI
+        id: publish
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: marketplace/quant/pandas_ta_kozmoai/dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
+
+      - name: Check if PyPI upload failed due to rate limits
+        if: steps.publish.outcome == 'failure'
+        run: |
+          echo "PyPI upload failed. Falling back to TestPyPI."
+          echo "REPOSITORY=testpypi" >> $GITHUB_OUTPUT
+        id: check_failure
+
+      - name: Publish pandas-ta-kozmoai to TestPyPI if PyPI failed
+        if: steps.check_failure.outcome == 'success'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/pandas_ta_kozmoai/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+        
+      - name: Set repository output
+        id: repository
+        if: steps.check_failure.outcome != 'success'
+        run: |
+          echo "REPOSITORY=pypi" >> $GITHUB_OUTPUT
 
   deploy-extensions:
     name: Build and publish ${{ matrix.extension }} extension 📦 to PyPI
@@ -162,6 +191,14 @@ jobs:
               # Use sed to replace the path-based dependency with a version constraint
               sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "'"$PANDAS_TA_VERSION"'"|g' pyproject.toml
               echo "Replaced pandas-ta-kozmoai path dependency with version: $PANDAS_TA_VERSION"
+              
+              # Add the appropriate index-url if using TestPyPI
+              if [ "${{ needs.deploy-pandas-ta-kozmoai.outputs.REPOSITORY }}" = "testpypi" ]; then
+                # Add a pyproject.toml section for the test.pypi.org index
+                awk 'BEGIN{p=1}/\[build-system\]/{print "[tool.poetry.source.testpypi]\nname = \"testpypi\"\nurl = \"https://test.pypi.org/simple/\"\npriority = \"supplemental\"\n"}p' pyproject.toml > pyproject.toml.tmp
+                mv pyproject.toml.tmp pyproject.toml
+                echo "Added TestPyPI source to pyproject.toml"
+              fi
             fi
             
             # Handle any other file-based dependencies
@@ -209,11 +246,22 @@ jobs:
           fi
 
       - name: Publish extension to PyPI
+        id: publish_pypi
         if: steps.check_extension.outputs.extension_exists == 'true'
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}/dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+      - name: Publish extension to TestPyPI if PyPI failed
+        if: steps.publish_pypi.outcome == 'failure' && steps.check_extension.outputs.extension_exists == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/kozmoai_platform/extensions/${{ matrix.extension }}/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
   deploy-providers:
@@ -299,6 +347,14 @@ jobs:
               # Use sed to replace the path-based dependency with a version constraint
               sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "'"$PANDAS_TA_VERSION"'"|g' pyproject.toml
               echo "Replaced pandas-ta-kozmoai path dependency with version: $PANDAS_TA_VERSION"
+              
+              # Add the appropriate index-url if using TestPyPI
+              if [ "${{ needs.deploy-pandas-ta-kozmoai.outputs.REPOSITORY }}" = "testpypi" ]; then
+                # Add a pyproject.toml section for the test.pypi.org index
+                awk 'BEGIN{p=1}/\[build-system\]/{print "[tool.poetry.source.testpypi]\nname = \"testpypi\"\nurl = \"https://test.pypi.org/simple/\"\npriority = \"supplemental\"\n"}p' pyproject.toml > pyproject.toml.tmp
+                mv pyproject.toml.tmp pyproject.toml
+                echo "Added TestPyPI source to pyproject.toml"
+              fi
             fi
             
             # Handle any other file-based dependencies
@@ -346,9 +402,20 @@ jobs:
           fi
 
       - name: Publish provider to PyPI
+        id: publish_pypi
         if: steps.check_provider.outputs.provider_exists == 'true'
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}/dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
+
+      - name: Publish provider to TestPyPI if PyPI failed
+        if: steps.publish_pypi.outcome == 'failure' && steps.check_provider.outputs.provider_exists == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
           skip-existing: true
