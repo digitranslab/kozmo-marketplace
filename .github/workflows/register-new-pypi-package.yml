@@ -1,0 +1,285 @@
+name: Register New Package on PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package to register (pandas-ta-kozmoai, extension-NAME, or provider-NAME)'
+        required: true
+        type: choice
+        options:
+          - pandas-ta-kozmoai
+          - extension-technical
+          - extension-quantitative
+          - extension-platform_api
+          - extension-econometrics
+          - extension-fixedincome
+          - extension-derivatives
+          - extension-regulators
+          - extension-commodity
+          - extension-devtools
+          - extension-currency
+          - extension-economy
+          - extension-equity
+          - extension-crypto
+          - extension-index
+          - extension-news
+          - extension-etf
+          - provider-tradingeconomics
+          - provider-federal_reserve
+          - provider-seeking_alpha
+          - provider-government_us
+          - provider-alpha_vantage
+          - provider-stockgrid
+          - provider-yfinance
+          - provider-intrinio
+          - provider-benzinga
+          - provider-tradier
+          - provider-polygon
+          - provider-deribit
+          - provider-tiingo
+          - provider-nasdaq
+          - provider-multpl
+          - provider-finviz
+          - provider-econdb
+          - provider-biztoc
+          - provider-finra
+          - provider-oecd
+          - provider-fred
+          - provider-cftc
+          - provider-cboe
+          - provider-wsj
+          - provider-tmx
+          - provider-sec
+          - provider-imf
+          - provider-fmp
+          - provider-eia
+          - provider-ecb
+          - provider-bls
+
+jobs:
+  register-pandas-ta-kozmoai:
+    name: Register pandas-ta-kozmoai on PyPI
+    runs-on: ubuntu-latest
+    if: inputs.package_name == 'pandas-ta-kozmoai'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+          twine
+
+      - name: Update pandas-ta-kozmoai version
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Add dev suffix with timestamp to version
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+          echo "Updated pandas-ta-kozmoai version to include timestamp: $TIMESTAMP"
+          # Store the version for later use
+          VERSION=$(grep -oP 'version = "\K[^"]+' pyproject.toml)
+          echo "PANDAS_TA_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build pandas-ta-kozmoai package
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        run: |
+          # Build the package
+          python -m build
+          echo "Built pandas-ta-kozmoai package version ${{ env.PANDAS_TA_VERSION }}"
+
+      - name: Register pandas-ta-kozmoai on PyPI
+        working-directory: marketplace/quant/pandas_ta_kozmoai
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "Attempting to register pandas-ta-kozmoai on PyPI for the first time"
+          twine upload --verbose dist/*
+          echo "Package registered successfully. Future workflow runs can now detect it."
+
+  register-extension:
+    name: Register extension on PyPI
+    runs-on: ubuntu-latest
+    if: startsWith(inputs.package_name, 'extension-')
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set extension name
+        run: |
+          EXTENSION_NAME="${{ inputs.package_name }}"
+          EXTENSION_NAME=${EXTENSION_NAME#extension-}
+          echo "EXTENSION_NAME=$EXTENSION_NAME" >> $GITHUB_ENV
+          echo "Registering extension: $EXTENSION_NAME"
+
+      - name: Verify extension directory exists
+        run: |
+          if [ -d "marketplace/quant/kozmoai_platform/extensions/${{ env.EXTENSION_NAME }}" ]; then
+            echo "Extension directory found"
+          else
+            echo "Error: Extension directory not found for ${{ env.EXTENSION_NAME }}"
+            exit 1
+          fi
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+          twine
+          toml
+
+      - name: Prepare extension for registration
+        working-directory: marketplace/quant/kozmoai_platform/extensions/${{ env.EXTENSION_NAME }}
+        run: |
+          # Create a backup of the original pyproject.toml
+          cp pyproject.toml pyproject.toml.backup
+          
+          # Check if file contains pandas-ta-kozmoai as a file reference
+          if grep -q "pandas-ta-kozmoai.*path" pyproject.toml; then
+            echo "Found file-based pandas-ta-kozmoai dependency, replacing with version reference"
+            sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "^0.4.21"|g' pyproject.toml
+            echo "Replaced pandas-ta-kozmoai path dependency with version constraint"
+          fi
+          
+          # Handle any other file-based dependencies
+          if grep -q "path =" pyproject.toml; then
+            echo "Other file-based dependencies found, replacing with version constraints"
+            sed -i 's|{ path = "[^"]*", develop = true[^}]* }|"^1.0.0"|g' pyproject.toml
+            echo "Replaced other path-based dependencies with version constraint"
+          fi
+          
+          # Update version with timestamp
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+          echo "Updated version in pyproject.toml"
+          
+          # Display the modified pyproject.toml for debugging
+          echo "Modified pyproject.toml:"
+          cat pyproject.toml
+
+      - name: Build extension package
+        working-directory: marketplace/quant/kozmoai_platform/extensions/${{ env.EXTENSION_NAME }}
+        run: |
+          # Build the package
+          python -m build
+          echo "Built package for ${{ env.EXTENSION_NAME }}"
+
+      - name: Register extension on PyPI
+        working-directory: marketplace/quant/kozmoai_platform/extensions/${{ env.EXTENSION_NAME }}
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "Attempting to register extension ${{ env.EXTENSION_NAME }} on PyPI for the first time"
+          twine upload --verbose dist/*
+          echo "Package registered successfully. Future workflow runs can now detect it."
+          
+          # Restore the original pyproject.toml
+          if [ -f "pyproject.toml.backup" ]; then
+            mv pyproject.toml.backup pyproject.toml
+            echo "Restored original pyproject.toml"
+          fi
+
+  register-provider:
+    name: Register provider on PyPI
+    runs-on: ubuntu-latest
+    if: startsWith(inputs.package_name, 'provider-')
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set provider name
+        run: |
+          PROVIDER_NAME="${{ inputs.package_name }}"
+          PROVIDER_NAME=${PROVIDER_NAME#provider-}
+          echo "PROVIDER_NAME=$PROVIDER_NAME" >> $GITHUB_ENV
+          echo "Registering provider: $PROVIDER_NAME"
+
+      - name: Verify provider directory exists
+        run: |
+          if [ -d "marketplace/quant/kozmoai_platform/providers/${{ env.PROVIDER_NAME }}" ]; then
+            echo "Provider directory found"
+          else
+            echo "Error: Provider directory not found for ${{ env.PROVIDER_NAME }}"
+            exit 1
+          fi
+
+      - name: Install build dependencies
+        run: >-
+          python -m
+          pip install
+          build
+          poetry
+          twine
+          toml
+
+      - name: Prepare provider for registration
+        working-directory: marketplace/quant/kozmoai_platform/providers/${{ env.PROVIDER_NAME }}
+        run: |
+          # Create a backup of the original pyproject.toml
+          cp pyproject.toml pyproject.toml.backup
+          
+          # Check if file contains pandas-ta-kozmoai as a file reference
+          if grep -q "pandas-ta-kozmoai.*path" pyproject.toml; then
+            echo "Found file-based pandas-ta-kozmoai dependency, replacing with version reference"
+            sed -i 's|pandas-ta-kozmoai = { path = "[^"]*", develop = true }|pandas-ta-kozmoai = "^0.4.21"|g' pyproject.toml
+            echo "Replaced pandas-ta-kozmoai path dependency with version constraint"
+          fi
+          
+          # Handle any other file-based dependencies
+          if grep -q "path =" pyproject.toml; then
+            echo "Other file-based dependencies found, replacing with version constraints"
+            sed -i 's|{ path = "[^"]*", develop = true[^}]* }|"^1.0.0"|g' pyproject.toml
+            echo "Replaced other path-based dependencies with version constraint"
+          fi
+          
+          # Update version with timestamp
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          sed -i "3s/version = \"\(.*\)\"/version = \"\1.dev$TIMESTAMP\"/" pyproject.toml
+          echo "Updated version in pyproject.toml"
+          
+          # Display the modified pyproject.toml for debugging
+          echo "Modified pyproject.toml:"
+          cat pyproject.toml
+
+      - name: Build provider package
+        working-directory: marketplace/quant/kozmoai_platform/providers/${{ env.PROVIDER_NAME }}
+        run: |
+          # Build the package
+          python -m build
+          echo "Built package for ${{ env.PROVIDER_NAME }}"
+
+      - name: Register provider on PyPI
+        working-directory: marketplace/quant/kozmoai_platform/providers/${{ env.PROVIDER_NAME }}
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "Attempting to register provider ${{ env.PROVIDER_NAME }} on PyPI for the first time"
+          twine upload --verbose dist/*
+          echo "Package registered successfully. Future workflow runs can now detect it."
+          
+          # Restore the original pyproject.toml
+          if [ -f "pyproject.toml.backup" ]; then
+            mv pyproject.toml.backup pyproject.toml
+            echo "Restored original pyproject.toml"
+          fi 
