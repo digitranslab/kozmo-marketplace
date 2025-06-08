@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "kozmoai-stockgrid"
+version = "1.4.0"
+description = "stockgrid extension for KozmoAI"
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_stockgrid" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kozmoai-core = "^1.4.2"
+pytest-freezegun = "^0.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_provider_extension"]
+stockgrid = "kozmoai_stockgrid:stockgrid_provider"

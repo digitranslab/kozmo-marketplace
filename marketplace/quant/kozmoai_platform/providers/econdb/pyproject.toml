@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "kozmoai-econdb"
+version = "1.3.0"
+description = "EconDB extension for KozmoAI"
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_econdb" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kozmoai-core = "^1.4.2"
+aiohttp-client-cache = "^0.11.0"
+aiosqlite = "^0.20.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_provider_extension"]
+econdb = "kozmoai_econdb:econdb_provider"

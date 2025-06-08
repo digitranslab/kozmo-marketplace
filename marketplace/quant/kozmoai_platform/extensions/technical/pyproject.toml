@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "kozmoai-technical"
+version = "1.4.1"
+description = "Technical Analysis extension for KozmoAI"
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_technical" }]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+kozmoai-core = "^1.4.2"
+pandas-ta-kozmoai = "^0.4.21"
+scikit-learn = "^1.6.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_core_extension"]
+technical = "kozmoai_technical.technical_router:router"
+
+[tool.poetry.plugins."kozmoai_charting_extension"]
+technical = "kozmoai_technical.technical_views:TechnicalViews"

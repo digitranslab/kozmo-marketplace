@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "kozmoai-biztoc"
+version = "1.4.0"
+description = ""
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_biztoc" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kozmoai-core = "^1.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_provider_extension"]
+biztoc = "kozmoai_biztoc:biztoc_provider"

@@ -1,0 +1,1 @@
+"""KozmoAI Technical Analysis Extension."""

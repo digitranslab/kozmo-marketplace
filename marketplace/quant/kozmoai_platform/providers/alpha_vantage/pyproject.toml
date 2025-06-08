@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "kozmoai-alpha-vantage"
+version = "1.4.0"
+description = "Alpha Vantage extension for KozmoAI"
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_alpha_vantage" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kozmoai-core = "^1.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_provider_extension"]
+alpha_vantage = "kozmoai_alpha_vantage:alpha_vantage_provider"

@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "kozmoai-federal-reserve"
+version = "1.4.0"
+description = "US Federal Reserve Data Extension for KozmoAI"
+authors = ["KozmoAI <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_federal_reserve" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kozmoai-core = "^1.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_provider_extension"]
+federal_reserve = "kozmoai_federal_reserve:federal_reserve_provider"

@@ -1,0 +1,7 @@
+[
+    {
+        "packageName": "kozmoai-charting",
+        "optional": true,
+        "description": "Create custom charts from OBBject data."
+    }
+]

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "kozmoai-etf"
+version = "1.4.0"
+description = "ETF extension for KozmoAI"
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_etf" }]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+kozmoai-core = "^1.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_core_extension"]
+etf = "kozmoai_etf.etf_router:router"
+
+[tool.poetry.plugins."kozmoai_charting_extension"]
+etf = "kozmoai_etf.etf_views:EtfViews"

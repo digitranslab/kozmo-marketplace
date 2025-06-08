@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "kozmoai-imf"
+version = "1.1.0"
+description = "https://datahelp.imf.org/knowledgebase/articles/630877-api"
+authors = ["KozmoAI Team <hello@kozmoai.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "kozmoai_imf" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kozmoai-core = "^1.4.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."kozmoai_provider_extension"]
+imf = "kozmoai_imf:imf_provider"

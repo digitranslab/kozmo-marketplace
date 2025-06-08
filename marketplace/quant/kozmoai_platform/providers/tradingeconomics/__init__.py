@@ -1,0 +1,1 @@
+"""KozmoAI Trading Economics Provider."""

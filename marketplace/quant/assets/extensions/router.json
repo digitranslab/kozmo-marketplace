@@ -1,0 +1,72 @@
+[
+    {
+        "packageName": "kozmoai-commodity",
+        "optional": false,
+        "description": "Commodity market data."
+    },
+    {
+        "packageName": "kozmoai-crypto",
+        "optional": false,
+        "description": "Cryptocurrency market data."
+    },
+    {
+        "packageName": "kozmoai-currency",
+        "optional": false,
+        "description": "Foreign exchange (FX) market data."
+    },
+    {
+        "packageName": "kozmoai-derivatives",
+        "optional": false,
+        "description": "Derivatives market data."
+    },
+    {
+        "packageName": "kozmoai-econometrics",
+        "optional": true,
+        "description": "Econometrics analysis tools."
+    },
+    {
+        "packageName": "kozmoai-economy",
+        "optional": false,
+        "description": "Economic data."
+    },
+    {
+        "packageName": "kozmoai-equity",
+        "optional": false,
+        "description": "Equity market data."
+    },
+    {
+        "packageName": "kozmoai-etf",
+        "optional": false,
+        "description": "Exchange Traded Funds market data."
+    },
+    {
+        "packageName": "kozmoai-fixedincome",
+        "optional": false,
+        "description": "Fixed Income market data."
+    },
+    {
+        "packageName": "kozmoai-index",
+        "optional": false,
+        "description": "Indices data."
+    },
+    {
+        "packageName": "kozmoai-news",
+        "optional": false,
+        "description": "Financial market news data."
+    },
+    {
+        "packageName": "kozmoai-quantitative",
+        "optional": true,
+        "description": "Quantitative analysis tools."
+    },
+    {
+        "packageName": "kozmoai-regulators",
+        "optional": false,
+        "description": "Financial market regulators data."
+    },
+    {
+        "packageName": "kozmoai-technical",
+        "optional": true,
+        "description": "Technical Analysis tools."
+    }
+]
