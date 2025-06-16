@@ -513,10 +513,32 @@ jobs:
         if: steps.check_provider.outputs.provider_exists == 'true'
         id: check_provider_exists
         run: |
+          # Map provider directory names to actual package names
+          case "${{ matrix.provider }}" in
+            "federal_reserve")
+              PACKAGE_NAME="kozmoai-federal-reserve"
+              ;;
+            "government_us")
+              PACKAGE_NAME="kozmoai-government-us"
+              ;;
+            "alpha_vantage")
+              PACKAGE_NAME="kozmoai-alpha-vantage"
+              ;;
+            "seeking_alpha")
+              PACKAGE_NAME="kozmoai-seeking-alpha"
+              ;;
+            "eia")
+              PACKAGE_NAME="kozmoai-us-eia"
+              ;;
+            *)
+              PACKAGE_NAME="kozmoai-${{ matrix.provider }}"
+              ;;
+          esac
+          
           # Try to get package info from PyPI
-          PACKAGE_NAME="kozmoai-provider-${{ matrix.provider }}"
           EXISTS=$(pip index versions $PACKAGE_NAME --no-cache-dir 2>/dev/null | grep -q "$PACKAGE_NAME" && echo "true" || echo "false")
           echo "EXISTS=$EXISTS" >> $GITHUB_OUTPUT
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_OUTPUT
           echo "Package $PACKAGE_NAME exists on PyPI: $EXISTS"
 
       - name: Update provider version
@@ -582,7 +604,7 @@ jobs:
         if: steps.check_provider.outputs.provider_exists == 'true' && steps.check_provider_exists.outputs.EXISTS == 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: kozmoai-provider-${{ matrix.provider }}-package
+          name: ${{ steps.check_provider_exists.outputs.PACKAGE_NAME }}-package
           path: marketplace/quant/kozmoai_platform/providers/${{ matrix.provider }}/dist/
           retention-days: 7
 
@@ -598,4 +620,5 @@ jobs:
           echo "3. Upload manually using 'twine upload' or PyPI web interface"
           echo "4. Once uploaded, you can run this workflow again - it will detect the package exists"
           echo ""
-          echo "Artifact name: kozmoai-provider-${{ matrix.provider }}-package"
+          echo "Package name: ${{ steps.check_provider_exists.outputs.PACKAGE_NAME }}"
+          echo "Artifact name: ${{ steps.check_provider_exists.outputs.PACKAGE_NAME }}-package"
