@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: check-pandas-ta-kozmoai
     # Only run this job if the package already exists on PyPI
-    if: needs.check-pandas-ta-kozmoai.outputs.EXISTS == 'true'
+#    if: needs.check-pandas-ta-kozmoai.outputs.EXISTS == 'true'
     outputs:
       PANDAS_TA_VERSION: ${{ steps.set_version.outputs.PANDAS_TA_VERSION }}
 
